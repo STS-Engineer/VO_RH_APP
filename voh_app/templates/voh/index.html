@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Saisie et Suivi des Métriques DL</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+      min-height: 100vh; padding: 20px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    h1 { text-align: center; color: #fff; margin-bottom: 30px; font-size: 2.2rem; font-weight: 700; text-shadow: 2px 2px 4px rgba(0,0,0,.3); }
+    .tabs { display: flex; justify-content: center; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; }
+    .tab-btn { padding: 14px 32px; font-size: 16px; font-weight: 600; border: none; border-radius: 30px; cursor: pointer;
+      background: rgba(255,255,255,.1); color: rgba(255,255,255,.8); transition: .3s; border: 2px solid rgba(255,255,255,.2); }
+    .tab-btn:hover { background: rgba(255,255,255,.2); color: #fff; transform: translateY(-2px); }
+    .tab-btn.active { background: linear-gradient(135deg,#10b981 0%,#059669 100%); color: #fff; box-shadow: 0 8px 20px rgba(16,185,129,.5); }
+    .tab-content { display: none; background: rgba(255,255,255,.95); border-radius: 20px; padding: 35px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+    .tab-content.active { display: block; }
+    h2 { color: #1e293b; font-size: 1.6rem; margin-bottom: 20px; border-bottom: 3px solid #10b981; }
+    .table-wrapper { overflow-x: auto; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,.08); margin-bottom: 30px; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; }
+    table th { background: linear-gradient(135deg,#0891b2 0%,#0e7490 100%); color: #fff; padding: 16px 12px; text-align: center; font-weight: 600; font-size: 13px; text-transform: uppercase; }
+    table td { padding: 14px 12px; text-align: center; border-bottom: 1px solid #e5e7eb; font-size: 14px; color: #374151; }
+    table tbody tr:hover { background: linear-gradient(90deg,#ecfdf5 0%,#d1fae5 100%); }
+    input[type="number"], input[type="text"] { width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; }
+    .form-metadata { margin-bottom: 25px; padding: 15px; background: #f0fdf4; border-radius: 12px; width: fit-content; }
+    .form-group { display: flex; flex-direction: column; gap: 8px; }
+    .insert-btn { background: linear-gradient(135deg,#10b981 0%,#059669 100%); color: #fff; padding: 16px 40px; border: none; border-radius: 50px; font-weight: 700; font-size: 16px; cursor: pointer; margin-top: 25px; }
+    .insert-btn:hover { transform: translateY(-3px); }
+    table a { color: #0891b2; text-decoration: none; font-weight: 600; }
+    .filters { display: flex; gap: 20px; margin-bottom: 20px; }
+    .filters select { padding: 8px; border: 2px solid #e5e7eb; border-radius: 8px; }
+    .footer { text-align: center; color: rgba(255,255,255,.7); font-size: 14px; margin-top: 40px; padding: 15px 0; border-top: 1px solid rgba(255,255,255,.2); }
+    .footer p strong { color: #10b981; }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Application de Suivi VOH Metrics</h1>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="openTab('saisie')">📝 Nouvelle Saisie</button>
+      <button class="tab-btn" onclick="openTab('donnees')">📊 Modification</button>
+    </div>
+
+    {# --- Mapping Type pré-défini selon les captures --- #}
+    {% set TYPE_MAP = {
+      "SUPERVISOR VALEO":"VOH","AQC VALEO":"VOH","REG VALEO":"VOH","SPC VALEO":"VOH","TRAINER VALEO":"ADMIN","METHODS VALEO":"FOH","TEAM LEADER VALEO":"FOH","CSL VALEO":"VOH",
+      "SUPERVISOR NIDEC":"VOH","AQC NIDEC":"VOH","REG NIDEC":"VOH","SPC NIDEC":"VOH","TRAINER NIDEC":"ADMIN","METHODS NIDEC":"FOH","TEAM LEADER NIDEC":"FOH","CSL NIDEC":"VOH",
+      "MAINTENANCE":"VOH","AQF":"VOH","WAREHOUSE":"VOH","SCRAP":"VOH","QUALITY":"FOH","LOGISTICS":"FOH","FINANCE":"ADMIN","INDUS/CIP":"FOH","HR":"ADMIN","PURCHASING":"ADMIN",
+      "EXECUTIVE ASSISTANT":"ADMIN","IT":"ADMIN","PROJECT":"FOH"
+    } %}
+
+    <!-- Onglet 1 : Formulaire -->
+    <div id="saisie" class="tab-content active">
+      <form method="POST" action="{{ url_for('voh.index') }}">
+        <div class="form-metadata">
+          <div class="form-group">
+            <label>Semaine :</label>
+            <input type="text" id="weekno" name="weekno" readonly>
+          </div>
+        </div>
+
+        {% for section, title in {
+          "valeo": "Lignes Valeo",
+          "nidec": "Lignes Nidec",
+          "other": "Lignes Other"
+        }.items() %}
+        <h2>{{ title }}</h2>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Département / Fonction</th>
+                <th>Type</th>
+                <th>Effectif MOD</th>
+                <th>H100%</th>
+                <th>H125%</th>
+                <th>H150%</th>
+                <th>H200%</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if section == "valeo" %}
+                {% set lines = ["SUPERVISOR VALEO","AQC VALEO","REG VALEO","SPC VALEO","TRAINER VALEO","METHODS VALEO","TEAM LEADER VALEO","CSL VALEO"] %}
+              {% elif section == "nidec" %}
+                {% set lines = ["SUPERVISOR NIDEC","AQC NIDEC","REG NIDEC","SPC NIDEC","TRAINER NIDEC","METHODS NIDEC","TEAM LEADER NIDEC","CSL NIDEC"] %}
+              {% else %}
+                {% set lines = ["MAINTENANCE","AQF","WAREHOUSE","SCRAP","QUALITY","LOGISTICS","FINANCE","INDUS/CIP","HR","PURCHASING","EXECUTIVE ASSISTANT","IT","PROJECT"] %}
+              {% endif %}
+
+              {% for line in lines %}
+              {% set line_type = TYPE_MAP.get(line, "") %}
+              <tr>
+                <td><strong>{{ line }}</strong></td>
+                <td>{{ line_type }}</td>
+                <td><input type="number" name="{{ line }}_dl_headcount"></td>
+                <td><input type="number" step="0.01" name="{{ line }}_h100" oninput="updateTotal('{{ line }}')"></td>
+                <td><input type="number" step="0.01" name="{{ line }}_h125" oninput="updateTotal('{{ line }}')"></td>
+                <td><input type="number" step="0.01" name="{{ line }}_h150" oninput="updateTotal('{{ line }}')"></td>
+                <td><input type="number" step="0.01" name="{{ line }}_h200" oninput="updateTotal('{{ line }}')"></td>
+                <td><span id="{{ line }}_total">0.00</span></td>
+
+                {# Champ caché pour envoyer le Type au backend (prêt pour INSERT) #}
+                <input type="hidden" name="{{ line }}_type" value="{{ line_type }}">
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endfor %}
+
+        <button type="submit" class="insert-btn">✅ Ajouter les Métriques</button>
+      </form>
+    </div>
+
+    <!-- Onglet 2 : Données -->
+    <div id="donnees" class="tab-content">
+      <h2>Données Existantes</h2>
+
+      <div class="filters">
+        <select id="filterLine" onchange="applyFilters()">
+          <option value="">-- Filtrer par Département --</option>
+          {% set seen_lines = [] %}
+          {% for m in metrics %}
+            {% if m.Department_function not in seen_lines %}
+              <option value="{{ m.Department_function }}">{{ m.Department_function }}</option>
+              {% set _ = seen_lines.append(m.Department_function) %}
+            {% endif %}
+          {% endfor %}
+        </select>
+
+        <select id="filterWeek" onchange="applyFilters()">
+          <option value="">-- Filtrer par Semaine --</option>
+          {% set seen_weeks = [] %}
+          {% for m in metrics %}
+            {% if m.WeekNo not in seen_weeks %}
+              <option value="{{ m.WeekNo }}">{{ m.WeekNo }}</option>
+              {% set _ = seen_weeks.append(m.WeekNo) %}
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if metrics %}
+      <div class="table-wrapper">
+        <table id="metricsTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>BU</th>
+              <th>Département / Fonction</th>
+              <th>Type</th>
+              <th>Effectif</th>
+              <th>H100</th>
+              <th>H125</th>
+              <th>H150</th>
+              <th>H200</th>
+              <th>Semaine</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for metric in metrics %}
+            {% set t = TYPE_MAP.get(metric.Department_function, "") %}
+            <tr>
+              <td>{{ metric.ID }}</td>
+              <td>{{ metric.BU }}</td>
+              <td><strong>{{ metric.Department_function }}</strong></td>
+              <td>{{ t }}</td>
+              <td>{{ metric.DL_Headcount }}</td>
+              <td>{{ "%.2f"|format(metric.H100) }}</td>
+              <td>{{ "%.2f"|format(metric.H125) }}</td>
+              <td>{{ "%.2f"|format(metric.H150) }}</td>
+              <td>{{ "%.2f"|format(metric.H200) }}</td>
+              <td>{{ metric.WeekNo }}</td>
+              <td>
+                {% set now = datetime.utcnow() %}
+                {% set current_week = now.isocalendar()[1] %}
+                {% set prev_week = current_week - 1 %}
+                {% if metric.WeekNo|string == 'W' ~ prev_week|string %}
+                  <a href="{{ url_for('voh.update', id=metric['ID']) }}">✏️ Modifier</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p class="empty-state">Aucune métrique trouvée dans la base de données.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <script>
+    function openTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    function updateTotal(line) {
+      let h100 = parseFloat(document.querySelector(`[name='${line}_h100']`).value) || 0;
+      let h125 = parseFloat(document.querySelector(`[name='${line}_h125']`).value) || 0;
+      let h150 = parseFloat(document.querySelector(`[name='${line}_h150']`).value) || 0;
+      let h200 = parseFloat(document.querySelector(`[name='${line}_h200']`).value) || 0;
+      let total = h100 + (h125 * 1.25) + (h150 * 0.5) + (h200 * 2);
+      document.getElementById(`${line}_total`).innerText = total.toFixed(2);
+    }
+
+    function applyFilters() {
+      const lineFilter = document.getElementById("filterLine").value;
+      const weekFilter = document.getElementById("filterWeek").value;
+      const rows = document.querySelectorAll("#metricsTable tbody tr");
+      rows.forEach(row => {
+        const line = row.cells[2].innerText.trim();   // Département
+        const week = row.cells[9].innerText.trim();   // Semaine (index décalé car colonne Type ajoutée)
+        let show = true;
+        if (lineFilter && line !== lineFilter) show = false;
+        if (weekFilter && week !== weekFilter) show = false;
+        row.style.display = show ? "" : "none";
+      });
+    }
+
+    // ✅ Auto remplir semaine (current week -1)
+    window.onload = function () {
+      const now = new Date();
+      const onejan = new Date(now.getFullYear(), 0, 1);
+      const week = Math.ceil((((now - onejan) / 86400000) + onejan.getDay() + 1) / 7);
+      const prevWeek = week - 1 > 0 ? week - 1 : 1;
+      document.getElementById("weekno").value = "W" + prevWeek;
+    };
+  </script>
+
+  <!-- SweetAlert pour flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <script>
+    const flashMessages = JSON.parse(`{{ messages|tojson|safe }}`);
+    flashMessages.forEach(([category, message]) => {
+      Swal.fire({
+        icon: category === "success" ? "success" : "error",
+        title: category === "success" ? "Succès" : "Erreur",
+        text: message,
+        confirmButtonColor: "#10b981"
+      });
+    });
+  </script>
+  {% endif %}
+  {% endwith %}
+
+  <footer class="footer">
+    <p>💻 Développé par <strong>Chaima Ben Yahia</strong></p>
+  </footer>
+</body>
+</html>

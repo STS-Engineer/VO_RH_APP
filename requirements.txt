@@ -1,0 +1,8 @@
+Flask
+psycopg2-binary
+Werkzeug
+Jinja2
+itsdangerous
+click
+python-dotenv
+
