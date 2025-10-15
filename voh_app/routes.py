@@ -5,12 +5,7 @@ import psycopg2  # type: ignore
 import psycopg2.extras  # type: ignore
 from datetime import datetime
 from config import Config
-
 import psycopg2.errors  # type: ignore
-
-# =====================================================
-# INITIALISATION DE L'APPLICATION
-# =====================================================
 
 from flask import Blueprint
 voh_bp = Blueprint('voh', __name__, template_folder='templates')
@@ -19,7 +14,6 @@ voh_bp = Blueprint('voh', __name__, template_folder='templates')
 # =====================================================
 # CONNEXION À LA BASE DE DONNÉES
 # =====================================================
-
 def get_db_connection():
     """Connexion à PostgreSQL"""
     try:
@@ -39,7 +33,6 @@ def get_db_connection():
 # =====================================================
 # FONCTION UTILITAIRE POUR UPDATE
 # =====================================================
-
 def parse_form_data(form):
     """Prépare les données pour l’update sans modifier import_date ni year."""
     return {
@@ -59,7 +52,6 @@ def parse_form_data(form):
 # =====================================================
 # ROUTE PRINCIPALE (INSERT + SELECT)
 # =====================================================
-
 @voh_bp.route('/', methods=['GET', 'POST'])
 def index():
     conn = None
@@ -73,71 +65,80 @@ def index():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-        
         if request.method == 'POST':
-              try:
-                # Dictionnaire des types selon les lignes
-                 TYPE_MAP = {
+            try:
+                TYPE_MAP = {
                     "SUPERVISOR VALEO": "VOH", "AQC VALEO": "VOH", "REG VALEO": "VOH", "SPC VALEO": "VOH",
-                     "TRAINER VALEO": "ADMIN", "METHODS VALEO": "FOH", "TEAM LEADER VALEO": "FOH", "CSL VALEO": "VOH",
-                       "SUPERVISOR NIDEC": "VOH", "AQC NIDEC": "VOH", "REG NIDEC": "VOH", "SPC NIDEC": "VOH",
-                       "TRAINER NIDEC": "ADMIN", "METHODS NIDEC": "FOH", "TEAM LEADER NIDEC": "FOH", "CSL NIDEC": "VOH",
-                       "MAINTENANCE": "VOH", "AQF": "VOH", "WAREHOUSE": "VOH", "SCRAP": "VOH",
-                       "QUALITY": "FOH", "LOGISTICS": "FOH", "FINANCE": "ADMIN", "INDUS/CIP": "FOH",
-                      "HR": "ADMIN", "PURCHASING": "ADMIN", "EXECUTIVE ASSISTANT": "ADMIN", "IT": "ADMIN", "PROJECT": "FOH"
-              
-               }
+                    "TRAINER VALEO": "ADMIN", "METHODS VALEO": "FOH", "TEAM LEADER VALEO": "FOH", "CSL VALEO": "VOH",
+                    "SUPERVISOR NIDEC": "VOH", "AQC NIDEC": "VOH", "REG NIDEC": "VOH", "SPC NIDEC": "VOH",
+                    "TRAINER NIDEC": "ADMIN", "METHODS NIDEC": "FOH", "TEAM LEADER NIDEC": "FOH", "CSL NIDEC": "VOH",
+                    "MAINTENANCE": "VOH", "AQF": "VOH", "WAREHOUSE": "VOH", "SCRAP": "VOH",
+                    "QUALITY": "FOH", "LOGISTICS": "FOH", "FINANCE": "ADMIN", "INDUS/CIP": "FOH",
+                    "HR": "ADMIN", "PURCHASING": "ADMIN", "EXECUTIVE ASSISTANT": "ADMIN", "IT": "ADMIN", "PROJECT": "FOH"
+                }
 
-                 lines_valeo = [
-                   "SUPERVISOR VALEO", "AQC VALEO", "REG VALEO", "SPC VALEO",
-                   "TRAINER VALEO", "METHODS VALEO", "TEAM LEADER VALEO", "CSL VALEO"]
-                 lines_nidec = [
-                  "SUPERVISOR NIDEC", "AQC NIDEC", "REG NIDEC", "SPC NIDEC",
-                   "TRAINER NIDEC", "METHODS NIDEC", "TEAM LEADER NIDEC", "CSL NIDEC"]
-                 lines_other = [
-                 "MAINTENANCE", "AQF", "WAREHOUSE", "SCRAP", "QUALITY", "LOGISTICS",
-                 "FINANCE", "INDUS/CIP", "HR", "PURCHASING", "EXECUTIVE ASSISTANT", "IT", "PROJECT" ]
+                lines_valeo = [
+                    "SUPERVISOR VALEO", "AQC VALEO", "REG VALEO", "SPC VALEO",
+                    "TRAINER VALEO", "METHODS VALEO", "TEAM LEADER VALEO", "CSL VALEO"
+                ]
+                lines_nidec = [
+                    "SUPERVISOR NIDEC", "AQC NIDEC", "REG NIDEC", "SPC NIDEC",
+                    "TRAINER NIDEC", "METHODS NIDEC", "TEAM LEADER NIDEC", "CSL NIDEC"
+                ]
+                lines_other = [
+                    "MAINTENANCE", "AQF", "WAREHOUSE", "SCRAP", "QUALITY", "LOGISTICS",
+                    "FINANCE", "INDUS/CIP", "HR", "PURCHASING", "EXECUTIVE ASSISTANT", "IT", "PROJECT"
+                ]
 
-                 weekno = request.form['weekno']
-                 import_date = datetime.now().date()
-                 year = datetime.now().year
+                weekno = request.form['weekno']
+                import_date = datetime.now().date()
+                year = datetime.now().year
 
-                 # === Fonction générique d’insertion ===
-                 def insert_lines(bu, lines):
-                     for line in lines:
-                           dl_headcount = int(request.form.get(f"{line}_dl_headcount", 0) or 0)
-                           h100 = float(request.form.get(f"{line}_h100", 0) or 0)
-                           h125 = float(request.form.get(f"{line}_h125", 0) or 0) * 1.25
-                           h150 = float(request.form.get(f"{line}_h150", 0) or 0) * 0.5
-                           h200 = float(request.form.get(f"{line}_h200", 0) or 0) * 2
-                           type_value = TYPE_MAP.get(line, "VOH")
+                # ✅ Récupérer le prochain ID avant insertion
+                cur.execute('SELECT COALESCE(MAX("ID"), 0) + 1 FROM public.weekly_voh_metrics')
+                next_id = cur.fetchone()[0]
 
-                           cur.execute("""
-                             INSERT INTO public.weekly_voh_metrics
-                             ("BU", "Department_function", "Type", "DL_Headcount",
-                                "H100", "H125", "H150", "H200", "WeekNo", "Import_Date", "Year")
-                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                              """, (bu, line, type_value, dl_headcount, h100, h125, h150, h200, weekno, import_date, year))
+                # === Fonction d’insertion ===
+                def insert_lines(bu, lines):
+                    nonlocal next_id
+                    for line in lines:
+                        dl_headcount = int(request.form.get(f"{line}_dl_headcount", 0) or 0)
+                        h100 = float(request.form.get(f"{line}_h100", 0) or 0)
+                        h125 = float(request.form.get(f"{line}_h125", 0) or 0) * 1.25
+                        h150 = float(request.form.get(f"{line}_h150", 0) or 0) * 0.5
+                        h200 = float(request.form.get(f"{line}_h200", 0) or 0) * 2
+                        type_value = TYPE_MAP.get(line, "VOH")
 
-                  # Insertion pour chaque BU
-                 insert_lines("VALEO", lines_valeo)
-                 insert_lines("NIDEC", lines_nidec)
-                 insert_lines("OTHER", lines_other)
+                        cur.execute("""
+                            INSERT INTO public.weekly_voh_metrics
+                            ("ID", "BU", "Department_function", "Type", "DL_Headcount",
+                             "H100", "H125", "H150", "H200", "WeekNo", "Import_Date", "Year")
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        """, (
+                            next_id, bu, line, type_value, dl_headcount,
+                            h100, h125, h150, h200, weekno, import_date, year
+                        ))
 
-                 conn.commit()
-                 flash("✅ Toutes les lignes ont été enregistrées avec succès !", "success")
-                 return redirect(url_for('voh.index'))
+                        next_id += 1  # auto incrémentation manuelle
 
-              except psycopg2.errors.UniqueViolation:
+                # Insertion des lignes
+                insert_lines("VALEO", lines_valeo)
+                insert_lines("NIDEC", lines_nidec)
+                insert_lines("OTHER", lines_other)
+
+                conn.commit()
+                flash("✅ Toutes les lignes ont été enregistrées avec succès !", "success")
+                return redirect(url_for('voh.index'))
+
+            except psycopg2.errors.UniqueViolation:
                 conn.rollback()
-                flash(f"⚠️ Erreur : Des données existent déjà pour la semaine {weekno}. Veuillez modifier les données existantes.", 'warning')
-              except ValueError as ve:
+                flash(f"⚠️ Erreur : Des données existent déjà pour la semaine {weekno}.", 'warning')
+            except ValueError as ve:
                 conn.rollback()
-                flash(f"❌ Erreur de saisie : Veuillez vérifier que tous les champs numériques sont corrects. Détails : {ve}", 'danger')
-              except psycopg2.Error as db_error:
+                flash(f"❌ Erreur de saisie : {ve}", 'danger')
+            except psycopg2.Error as db_error:
                 conn.rollback()
                 flash(f"❌ Erreur de base de données : {db_error}", 'danger')
-          
 
         # Sélection de toutes les données existantes
         select_query = """
@@ -169,7 +170,6 @@ def index():
 # =====================================================
 # ROUTE DE MISE À JOUR
 # =====================================================
-
 @voh_bp.route('/update/<string:id>', methods=['GET', 'POST'])
 def update(id):
     conn = None
@@ -180,7 +180,6 @@ def update(id):
 
         if request.method == 'POST':
             data = parse_form_data(request.form)
-
             update_query = """
                 UPDATE public.weekly_voh_metrics SET
                 "BU"=%s, "Department_function"=%s,"Type"=%s, "DL_Headcount"=%s,
@@ -189,7 +188,7 @@ def update(id):
                 WHERE "ID" = %s
             """
             values = (
-                data['bu'], data['department_function'],data['type'], data['dl_headcount'],
+                data['bu'], data['department_function'], data['type'], data['dl_headcount'],
                 data['h100'], data['h125'], data['h150'], data['h200'],
                 data['weekno'], id
             )
@@ -212,27 +211,22 @@ def update(id):
                 ROUND(CAST(COALESCE("H200", 0.00) / 2 AS numeric), 2) AS "H200",
                 "WeekNo",
                 "Import_Date",
-                 "Year"
+                "Year"
           FROM public.weekly_voh_metrics
           WHERE "ID" = %s
         """, (id,))
-
         metric = cur.fetchone()
 
         if metric is None:
             abort(404)
-            
+
     except (ValueError, psycopg2.Error) as e:
-        if conn: conn.rollback()
+        if conn:
+            conn.rollback()
         flash(f"Erreur lors de la modification : {e}", 'danger')
         return render_template('voh/update.html', metric=metric)
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
     return render_template('voh/update.html', metric=metric)
-    
-
-# =====================================================
-# MAIN
-# =====================================================
-

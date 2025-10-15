@@ -3,14 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<<<<<<< HEAD
   <title>Hours Paid Form – Sceet Plant</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32.png') }}">
   <meta name="theme-color" content="#0ea5e9">
-=======
-  <title>Accueil - Portail AVOCarbon</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🧑‍🤝‍🧑</text></svg>">
->>>>>>> bb44250a87d552cd6e473951e1ffce4d50699848
   <style>
     * {
       margin: 0;
@@ -204,7 +199,7 @@
   <div class="container">
     <h1>AVOCarbon</h1>
     <p class="subtitle">Choisissez votre formulaire</p>
-    
+
     <div class="cards-container">
       <div class="card">
         <a href="{{ url_for('rh.index') }}" class="card-link">
@@ -231,7 +226,7 @@
     for (let i = 0; i < particleCount; i++) {
       const particle = document.createElement('div');
       particle.className = 'particle';
-      
+
       const size = Math.random() * 100 + 50;
       particle.style.width = size + 'px';
       particle.style.height = size + 'px';
@@ -239,7 +234,7 @@
       particle.style.top = Math.random() * 100 + '%';
       particle.style.animationDelay = Math.random() * 20 + 's';
       particle.style.animationDuration = (Math.random() * 10 + 15) + 's';
-      
+
       particlesContainer.appendChild(particle);
     }
   </script>
